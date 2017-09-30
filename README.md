@@ -8,8 +8,11 @@ tiny script that helps running nvidia dockers similar to vagrant
 
 [Install nvidia-docker on zesty](http://blog.carbocation.com/post/160049289407/installing-nvidia-docker-on-ubuntu-1704-zesty)
 
+## Install
+
+    $ pip install git+https://github.com/rk4n/nv-dkr --user
+
 ## Usage
 
     $ dkr init gcr.io/tensorflow/tensorflow:latest-gpu --nvidia
     $ dkr up
-  
