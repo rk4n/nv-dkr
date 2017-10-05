@@ -3,6 +3,7 @@ import sys
 import os
 import os.path
 import json
+import argparse
 import subprocess
 
 FILENAME = ".dkr"
@@ -24,13 +25,14 @@ def read_config():
   with open("./" + FILENAME, "r") as f:
     return json.load(f)
 
-def init(img, is_nv_docker):
+def init(img, is_nv_docker, port):
   name = subprocess.check_output("pwd | md5sum -t | cut -c -32", shell=True)
 
   cfg = {
     "image": img,
     "nvidia": is_nv_docker,
-    "name": name.strip()
+    "name": name.strip(),
+    "port": port
   }
 
   with open("./" + FILENAME, "w") as f:
@@ -46,6 +48,7 @@ def up():
 
   name = cfg['name']
   image = cfg['image']
+  port = cfg['port']
 
   s = subprocess.check_output("sudo docker ps -a | grep -c {} || true".format(name), shell=True).strip()
   if int(s) > 0:
@@ -53,10 +56,11 @@ def up():
     attach()
 
   else:
-    ports = "-p 8888:8888"
+    ports = "-p {0}:{0}".format(port)
     proc = "bash"
     volume = "-v $(pwd):/vol"
-    cmdargs = "run {} --name {} -it {} {} {}".format(ports, name, volume, image, proc)
+    workdir = "-w /vol"
+    cmdargs = "run {} --name {} -it {} {} {} {}".format(ports, name, volume, workdir, image, proc)
     r = run_docker(cmdargs, is_nv_docker=cfg['nvidia'])
 
   if r == 0:
@@ -86,9 +90,6 @@ def destroy():
   cmdargs = "rm {}".format(name)
   run_docker(cmdargs, is_nv_docker=cfg['nvidia'])
 
-# mount current dir as volume
-# docker vs nv docker
-# ports
 
 def main():
   if len(sys.argv) == 1:
@@ -110,13 +111,17 @@ def main():
 
   if command == 'init' or command == 'i':
     if len(sys.argv) == 2:
-      print("Usage: dkr init image [--nvidia]")
+      print("Usage: dkr init image [--nvidia] [--port PORT]")
       sys.exit(1)
     
     image = sys.argv[2]
-    nvidia = ('ndkr' in program) or (len(sys.argv) > 3 and sys.argv[3] == "--nvidia")
+    
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--port', type=int, default=8888)
+    parser.add_argument('--nvidia', action='store_true')
+    args = parser.parse_args(sys.argv[3:])
 
-    init(image, nvidia)
+    init(image, args.nvidia, args.port)
 
 
 if __name__ == "__main__":
