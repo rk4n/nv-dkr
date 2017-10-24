@@ -16,3 +16,11 @@ tiny script that helps running nvidia dockers similar to vagrant
 
     $ dkr init gcr.io/tensorflow/tensorflow:latest-gpu --nvidia
     $ dkr up
+
+    $ dkr destroy
+
+Examples:
+- `nvidia/cuda`
+- `tensorflow/tensorflow:latest-gpu`
+- `pytorch/pytorch`
+- `continuumio/miniconda`
