@@ -8,121 +8,127 @@ import subprocess
 
 FILENAME = ".dkr"
 
-def run_docker(cmdline, is_nv_docker=False):
-  docker_executable = "sudo nvidia-docker" if is_nv_docker else "sudo docker"
 
-  pargs = "{} {}".format(docker_executable,cmdline) #.split(' ')
-  return subprocess.check_call(pargs, shell=True)
-  # print pargs
+def run_docker(cmdline, is_nv_docker=False):
+    docker_executable = "sudo nvidia-docker" if is_nv_docker else "sudo docker"
+
+    pargs = "{} {}".format(docker_executable, cmdline)
+    return subprocess.check_call(pargs, shell=True)
 
 
 def ensure_config():
-  if not os.path.exists("./" + FILENAME):
-    print("No config found. Please run 'dkr init ...'")
-    sys.exit(1)
+    if not os.path.exists("./" + FILENAME):
+        print("No config found. Please run 'dkr init ...'")
+        sys.exit(1)
+
 
 def read_config():
-  with open("./" + FILENAME, "r") as f:
-    return json.load(f)
+    with open("./" + FILENAME, "r") as f:
+        return json.load(f)
+
 
 def init(img, is_nv_docker, port):
-  name = subprocess.check_output("pwd | md5sum -t | cut -c -32", shell=True)
+    name = subprocess.check_output("pwd | md5sum -t | cut -c -32", shell=True)
 
-  cfg = {
-    "image": img,
-    "nvidia": is_nv_docker,
-    "name": name.strip(),
-    "port": port
-  }
+    cfg = {
+        "image": img,
+        "nvidia": is_nv_docker,
+        "name": name.strip(),
+        "port": port
+    }
 
-  with open("./" + FILENAME, "w") as f:
-    json.dump(cfg, f)
-  
-  print("DONE")
+    with open("./" + FILENAME, "w") as f:
+        json.dump(cfg, f)
 
+    print("DONE")
 
 
 def up():
-  ensure_config()
-  cfg = read_config()
+    ensure_config()
+    cfg = read_config()
 
-  name = cfg['name']
-  image = cfg['image']
-  port = cfg['port']
+    name = cfg['name']
+    image = cfg['image']
+    port = cfg['port']
 
-  s = subprocess.check_output("sudo docker ps -a | grep -c {} || true".format(name), shell=True).strip()
-  if int(s) > 0:
-    r = run_docker("start {}".format(name), is_nv_docker=cfg['nvidia'])
-    attach()
+    s = subprocess.check_output(
+        "sudo docker ps -a | grep -c {} || true".format(name), shell=True).strip()
+    if int(s) > 0:
+        r = run_docker("start {}".format(name), is_nv_docker=cfg['nvidia'])
+        attach()
 
-  else:
-    ports = "-p {0}:{0}".format(port)
-    proc = "bash"
-    volume = "-v $(pwd):/vol"
-    workdir = "-w /vol"
-    cmdargs = "run {} --name {} -it {} {} {} {}".format(ports, name, volume, workdir, image, proc)
-    r = run_docker(cmdargs, is_nv_docker=cfg['nvidia'])
+    else:
+        ports = "-p {0}:{0}".format(port)
+        proc = "bash"
+        volume = "-v $(pwd):/vol"
+        workdir = "-w /vol"
+        cmdargs = "run {} --name {} -it {} {} {} {}".format(
+            ports, name, volume, workdir, image, proc)
+        r = run_docker(cmdargs, is_nv_docker=cfg['nvidia'])
 
-  if r == 0:
-    print("DONE")
-  else:
-    print("ERROR")
+    if r == 0:
+        print("DONE")
+    else:
+        print("ERROR")
+
 
 def stop():
-  ensure_config()
-  cfg = read_config()
-  name = cfg['name']
-  cmdargs = "stop {}".format(name)
-  run_docker(cmdargs, is_nv_docker=cfg['nvidia'])
+    ensure_config()
+    cfg = read_config()
+    name = cfg['name']
+    cmdargs = "stop {}".format(name)
+    run_docker(cmdargs, is_nv_docker=cfg['nvidia'])
 
 
 def attach():
-  ensure_config()
-  cfg = read_config()
-  name = cfg['name']
-  cmdargs = "attach {}".format(name)
-  run_docker(cmdargs, is_nv_docker=cfg['nvidia'])
+    ensure_config()
+    cfg = read_config()
+    name = cfg['name']
+    cmdargs = "attach {}".format(name)
+    run_docker(cmdargs, is_nv_docker=cfg['nvidia'])
+
 
 def destroy():
-  ensure_config()
-  cfg = read_config()
-  name = cfg['name']
-  cmdargs = "rm {}".format(name)
-  run_docker(cmdargs, is_nv_docker=cfg['nvidia'])
+    ensure_config()
+    cfg = read_config()
+    name = cfg['name']
+    cmdargs = "rm {}".format(name)
+    run_docker(cmdargs, is_nv_docker=cfg['nvidia'])
 
 
 def main():
-  if len(sys.argv) == 1:
-    print("Usage: dkr up|stop|init|destroy [image] [--nvidia]")
-    sys.exit(0)
-  
-  program = sys.argv[0]
-  command = sys.argv[1]
-  
-  if command == 'up' or command == 'u':
-    #handle case when docker was destroyed
-    up()
-  
-  if command == 'stop' or command == 's':
-    stop()
-  
-  if command == 'destroy' or command == 'd':
-    destroy()
+    if len(sys.argv) == 1:
+        print("Usage: dkr up|stop|init|destroy [image] [--nvidia]")
+        sys.exit(0)
 
-  if command == 'init' or command == 'i':
-    if len(sys.argv) == 2:
-      print("Usage: dkr init image [--nvidia] [--port PORT]")
-      sys.exit(1)
-    
-    image = sys.argv[2]
-    
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--port', type=int, default=8888)
-    parser.add_argument('--nvidia', action='store_true')
-    args = parser.parse_args(sys.argv[3:])
+    program = sys.argv[0]
+    command = sys.argv[1]
 
-    init(image, args.nvidia, args.port)
+    if command == 'up' or command == 'u':
+        # handle case when docker was destroyed
+        up()
+
+    if command == 'stop' or command == 's':
+        stop()
+
+    if command == 'destroy' or command == 'd':
+        destroy()
+
+    if command == 'init' or command == 'i':
+        if len(sys.argv) == 2:
+            print(
+                "Usage: dkr init image [--nvidia] [--port PORT]")
+            sys.exit(1)
+
+        image = sys.argv[2]
+
+        parser = argparse.ArgumentParser()
+        parser.add_argument('--port', type=int, default=8888)
+        parser.add_argument('--nvidia', action='store_true')
+        args = parser.parse_args(sys.argv[3:])
+
+        init(image, args.nvidia, args.port)
 
 
 if __name__ == "__main__":
-  main()
+    main()
