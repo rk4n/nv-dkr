@@ -1,0 +1,16 @@
+sudo: required
+
+language: python
+python:
+  - "2.7"
+
+services:
+  - docker
+
+script:
+- ./dkr i bash:latest
+- ./dkr u &
+- sleep 60
+- ./dkr s
+- ./dkr d
+
