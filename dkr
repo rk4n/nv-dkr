@@ -13,7 +13,13 @@ def run_docker(cmdline, is_nv_docker=False):
     docker_executable = "sudo nvidia-docker" if is_nv_docker else "sudo docker"
 
     pargs = "{} {}".format(docker_executable, cmdline)
-    return subprocess.check_call(pargs, shell=True)
+
+    try:
+        out = subprocess.check_output(pargs, shell=True)
+        return 0
+    except subprocess.CalledProcessError as ex:
+        print ex.output
+        return ex.returncode
 
 
 def ensure_config():
@@ -53,6 +59,7 @@ def up():
 
     s = subprocess.check_output(
         "sudo docker ps -a | grep -c {} || true".format(name), shell=True).strip()
+
     if int(s) > 0:
         r = run_docker("start {}".format(name), is_nv_docker=cfg['nvidia'])
         attach()
@@ -62,7 +69,7 @@ def up():
         proc = "bash"
         volume = "-v $(pwd):/vol"
         workdir = "-w /vol"
-        cmdargs = "run {} --name {} -it {} {} {} {}".format(
+        cmdargs = "runX {} --name {} -it {} {} {} {}".format(
             ports, name, volume, workdir, image, proc)
         r = run_docker(cmdargs, is_nv_docker=cfg['nvidia'])
 
