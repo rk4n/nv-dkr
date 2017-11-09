@@ -11,11 +11,20 @@ import subprocess
 FILENAME = ".dkr"
 
 
+class DockerException(Exception):
+    pass
+
+
 def run_docker(cmdline, is_nv_docker=False):
     docker_executable = "sudo nvidia-docker" if is_nv_docker else "sudo docker"
 
     pargs = "{} {}".format(docker_executable, cmdline)
-    return subprocess.check_call(pargs, shell=True)
+
+    try:
+        out = subprocess.check_output(pargs, shell=True)
+        print out
+    except subprocess.CalledProcessError as ex:
+        raise DockerException(ex.output)
 
 
 def ensure_config():
@@ -59,11 +68,8 @@ def up():
 
     s = subprocess.check_output(
         "sudo docker ps -a | grep -c {} || true".format(name), shell=True).strip()
-    if int(s) > 0:
-        r = run_docker("start {}".format(name), is_nv_docker=cfg['nvidia'])
-        attach()
 
-    else:
+    if int(s) == 0:
         ports = "-p {0}:{0}".format(port)
         proc = "bash"
         volume = "-v $(pwd):/vol"
@@ -76,7 +82,8 @@ def up():
     if r == 0:
         print("DONE")
     else:
-        print("ERROR")
+        run_docker("start {}".format(name), is_nv_docker=cfg['nvidia'])
+        attach()
 
 
 def stop():
