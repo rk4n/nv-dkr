@@ -15,14 +15,17 @@ class DockerException(Exception):
     pass
 
 
-def run_docker(cmdline, is_nv_docker=False):
+def run_docker(cmdline, is_nv_docker=False, interactive=False):
     docker_executable = "sudo nvidia-docker" if is_nv_docker else "sudo docker"
 
     pargs = "{} {}".format(docker_executable, cmdline)
 
     try:
+        if interactive:
+            return subprocess.check_call(pargs, shell=True)
+
         out = subprocess.check_output(pargs, shell=True)
-        print out
+        print(out)
     except subprocess.CalledProcessError as ex:
         raise DockerException(ex.output)
 
@@ -77,10 +80,10 @@ def up():
         cmdargs = "run {0} --name {1} -it {2} {3} {4} {5} {6}".format(
             ports, name, volume, docker_args, workdir, image, proc)
 
-        r = run_docker(cmdargs, is_nv_docker=cfg['nvidia'])
+        r = run_docker(cmdargs, is_nv_docker=cfg['nvidia'], interactive=True)
+        if r == 0:
+            print("DONE")
 
-    if r == 0:
-        print("DONE")
     else:
         run_docker("start {}".format(name), is_nv_docker=cfg['nvidia'])
         attach()
@@ -99,7 +102,7 @@ def attach():
     cfg = read_config()
     name = cfg['name']
     cmdargs = "attach {}".format(name)
-    run_docker(cmdargs, is_nv_docker=cfg['nvidia'])
+    run_docker(cmdargs, is_nv_docker=cfg['nvidia'], interactive=True)
 
 
 def destroy():
