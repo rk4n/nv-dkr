@@ -6,6 +6,7 @@ import os
 import os.path
 import json
 import argparse
+import platform
 import subprocess
 
 FILENAME = ".dkr"
@@ -15,16 +16,47 @@ class DockerException(Exception):
     pass
 
 
-def run_docker(cmdline, is_nv_docker=False, interactive=False):
-    docker_executable = "sudo nvidia-docker" if is_nv_docker else "sudo docker"
+COLORS = {
+    'HEADER': '\033[95m',
+    'OKBLUE': '\033[94m',
+    'OKGREEN': '\033[92m',
+    'WARNING': '\033[93m',
+    'FAIL': '\033[91m',
+    'ENDC': '\033[0m',
+}
+
+def need_sudo(config_val):
+    if not config_val:
+        if platform.system == "Linux":
+            return True
+        return False
+    else:
+        return config_val
+
+
+def warn_sudo(config_val):
+    use_sudo = need_sudo(config_val)
+    if config_val is None:
+        if use_sudo:
+            print("OS is Linux => {OKBLUE}Using{ENC} sudo to run docker".format(**COLORS))
+        else:
+            print("OS is {os} => {OKBLUE}Not using{ENDC} sudo to run docker".format(os=platform.system(), **COLORS))
+
+
+def run_docker(cmdline, is_nv_docker=False, is_sudo=None, is_interactive=False):
+    docker_executable = "nvidia-docker" if is_nv_docker else "docker"
+
+    use_sudo = need_sudo(config_val=is_sudo)
+    if use_sudo:
+        docker_executable = "sudo " + docker_executable
 
     pargs = "{} {}".format(docker_executable, cmdline)
 
     try:
-        if interactive:
+        if is_interactive:
             return subprocess.check_call(pargs, shell=True)
 
-        out = subprocess.check_output(pargs, shell=True)
+        out = subprocess.check_output(pargs, shell=True).decode().strip()
         print(out)
     except subprocess.CalledProcessError as ex:
         raise DockerException(ex.output)
@@ -41,14 +73,20 @@ def read_config():
         return json.load(f)
 
 
-def init(img, is_nv_docker, port, docker_args):
-    name = subprocess.check_output("pwd | md5sum -t | cut -c -32", shell=True)
+def init(img, is_nv_docker, port, sudo_ns, docker_args):
+    name = subprocess.check_output("pwd | md5sum -t | cut -c -32", shell=True).decode()
+
+    sudo, nosudo = sudo_ns
+    sudo_cfg = True if sudo else (False if nosudo else None)
+    if sudo_cfg is None:
+        print("sudo/nosudo flag not provided, will guess based on OS")
 
     cfg = {
         "image": img,
         "nvidia": is_nv_docker,
         "name": name.strip(),
         "port": port,
+        "sudo": sudo_cfg,
         "docker_args": docker_args
     }
 
@@ -65,12 +103,18 @@ def up():
     name = cfg['name']
     image = cfg['image']
     port = cfg['port']
+    sudo = cfg.get("sudo", None)
+    warn_sudo(sudo)
+
     docker_args = " ".join(cfg['docker_args'])
 
     print("Running {0}, port: {1}\n--\n".format(image, port))
 
-    s = subprocess.check_output(
-        "sudo docker ps -a | grep -c {} || true".format(name), shell=True).strip()
+    cmd_ps = "docker ps -a | grep -c {} || true".format(name)
+    if need_sudo(config_val=sudo):
+        cmd_ps = "sudo " + cmd_ps
+
+    s = subprocess.check_output(cmd_ps, shell=True).strip()
 
     if int(s) == 0:
         ports = "-p {0}:{0}".format(port)
@@ -80,12 +124,12 @@ def up():
         cmdargs = "run {0} --name {1} -it {2} {3} {4} {5} {6}".format(
             ports, name, volume, docker_args, workdir, image, proc)
 
-        r = run_docker(cmdargs, is_nv_docker=cfg['nvidia'], interactive=True)
+        r = run_docker(cmdargs, is_nv_docker=cfg['nvidia'], is_interactive=True, is_sudo=sudo)
         if r == 0:
             print("DONE")
 
     else:
-        run_docker("start {}".format(name), is_nv_docker=cfg['nvidia'])
+        run_docker("start {}".format(name), is_nv_docker=cfg['nvidia'], is_sudo=sudo)
         attach()
 
 
@@ -93,29 +137,39 @@ def stop():
     ensure_config()
     cfg = read_config()
     name = cfg['name']
+    sudo = cfg.get("sudo", None)
+    warn_sudo(sudo)
+
     cmdargs = "stop {}".format(name)
-    run_docker(cmdargs, is_nv_docker=cfg['nvidia'])
+    run_docker(cmdargs, is_nv_docker=cfg['nvidia'], is_sudo=sudo)
 
 
 def attach():
     ensure_config()
     cfg = read_config()
     name = cfg['name']
+    sudo = cfg.get("sudo", None)
+    warn_sudo(sudo)
+
     cmdargs = "attach {}".format(name)
-    run_docker(cmdargs, is_nv_docker=cfg['nvidia'], interactive=True)
+    run_docker(cmdargs, is_nv_docker=cfg['nvidia'], is_interactive=True, is_sudo=sudo)
 
 
 def destroy():
     ensure_config()
     cfg = read_config()
     name = cfg['name']
+    sudo = cfg.get("sudo", None)
+    warn_sudo(sudo)
+
     cmdargs = "rm {}".format(name)
-    run_docker(cmdargs, is_nv_docker=cfg['nvidia'])
+    run_docker(cmdargs, is_nv_docker=cfg['nvidia'], is_sudo=sudo)
 
 
 def get_random_port():
     import random
     return 8000 + random.randint(1,999)
+
 
 def main():
     if len(sys.argv) == 1:
@@ -137,7 +191,7 @@ def main():
     if command == 'init' or command == 'i':
         if len(sys.argv) == 2:
             print(
-                "Usage: dkr init image [--nvidia] [--port PORT] [...docker args]")
+                "Usage: dkr init image [--nvidia] [--sudo|nosudo] [--port PORT] [...docker args]")
             sys.exit(1)
 
         image = sys.argv[2]
@@ -146,9 +200,11 @@ def main():
         parser = argparse.ArgumentParser()
         parser.add_argument('--port', type=int, default=random_port)
         parser.add_argument('--nvidia', action='store_true')
+        parser.add_argument('--sudo', action='store_true')
+        parser.add_argument('--nosudo', action='store_true')
         args, unknown = parser.parse_known_args(sys.argv[3:])
 
-        init(image, args.nvidia, args.port, docker_args=unknown)
+        init(image, args.nvidia, args.port, (args.sudo, args.nosudo), docker_args=unknown)
 
 
 if __name__ == "__main__":

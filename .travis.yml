@@ -3,6 +3,7 @@ sudo: required
 language: python
 python:
   - "2.7"
+  - "3.6"
 
 services:
   - docker
@@ -10,7 +11,6 @@ services:
 script:
 - ./dkr i bash:latest
 - ./dkr u &
-- sleep 60
+- sleep 160
 - ./dkr s
 - ./dkr d
-
