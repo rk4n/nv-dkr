@@ -14,7 +14,7 @@ tiny script that helps running nvidia dockers similar to vagrant
 
 ## Usage
 
-    $ dkr init gcr.io/tensorflow/tensorflow:latest-gpu --nvidia
+    $ dkr i nvidia/cuda:9.2-cudnn7-devel-ubuntu16.04 --nvidia
     $ dkr up
 
     $ dkr destroy
