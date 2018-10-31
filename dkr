@@ -172,8 +172,8 @@ def get_random_port():
 
 
 def main():
-    if len(sys.argv) == 1:
-        print("Usage: dkr up|stop|init|destroy [image] [--nvidia]")
+    if len(sys.argv) == 1 or sys.argv[1] == "--help":
+        print("Usage: dkr up|stop|init|destroy")
         sys.exit(0)
 
     command = sys.argv[1]
@@ -189,7 +189,7 @@ def main():
         destroy()
 
     if command == 'init' or command == 'i':
-        if len(sys.argv) == 2:
+        if len(sys.argv) == 2 or sys.argv[2] == "--help":
             print(
                 "Usage: dkr init image [--nvidia] [--sudo|nosudo] [--port PORT] [...docker args]")
             sys.exit(1)
